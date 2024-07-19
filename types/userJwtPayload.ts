@@ -1,4 +1,6 @@
-export interface UserJwtPayload {
+interface UserJwtPayload {
+  id: number
   email: string
-  access: boolean
 }
+
+export default UserJwtPayload

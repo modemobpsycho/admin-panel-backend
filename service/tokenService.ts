@@ -1,21 +1,22 @@
 import { sign, verify } from "jsonwebtoken"
-import { UserJwtPayload } from "../types/userJwtPayload"
+import UserJwtPayload from "../types/userJwtPayload"
 import { MyConfig } from "../config/config"
 import { PrismaClient } from "@prisma/client"
 import { ITokenService } from "./interfaces/tokenService.interface"
 
 class TokenService implements ITokenService {
-  generateTokens(payload: UserJwtPayload) {
+  generateAccessToken(payload: UserJwtPayload) {
     const accessToken = sign(payload, MyConfig.JWT_SECRET!, {
       expiresIn: "30m"
     })
+    return accessToken
+  }
+
+  generateRefreshToken(payload: UserJwtPayload) {
     const refreshToken = sign(payload, MyConfig.JWT_REFRESH_SECRET!, {
       expiresIn: "60d"
     })
-    return {
-      accessToken,
-      refreshToken
-    }
+    return refreshToken
   }
 
   validateAccessToken(token: string) {
