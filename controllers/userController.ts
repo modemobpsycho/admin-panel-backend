@@ -2,9 +2,11 @@ import { Response, Request } from "express"
 import { prismaClient } from "../prisma/database"
 import bcrypt from "bcrypt"
 import TokenService from "../service/tokenService"
-import { maxAgeCookie, saltRounds } from "../constants/constants"
+import { maxAgeCookie } from "../constants/constants"
+import { MyConfig } from "../config/config"
 
 const tokenService = new TokenService()
+const salt = MyConfig.SALT
 
 export const getUsers = async (req: Request, res: Response) => {
   const users = await prismaClient.user.findMany({
@@ -16,7 +18,10 @@ export const getUsers = async (req: Request, res: Response) => {
 export const createUser = async (req: Request, res: Response) => {
   const { username, position, email, password, access } = req.body
   try {
-    const hashedPassword = await bcrypt.hash(password, saltRounds)
+    const hashedPassword = await bcrypt.hash(password, salt)
+
+    const payload = { email, username }
+    const refreshToken = tokenService.generateRefreshToken(payload)
 
     const user = await prismaClient.user.create({
       data: {
@@ -24,23 +29,12 @@ export const createUser = async (req: Request, res: Response) => {
         position,
         email,
         password: hashedPassword,
-        access
+        access,
+        refreshToken
       }
     })
 
-    const { id: userId, email: userEmail } = user
-
-    const payload = { id: userId, email: userEmail }
-    const accessToken = tokenService.generateAccessToken(payload)
-    const refreshToken = tokenService.generateRefreshToken(payload)
-
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: true,
-      maxAge: maxAgeCookie
-    })
-
-    return res.status(201).json({ user, accessToken })
+    return res.status(201).json({ user })
   } catch (error) {
     if (error.code === "P2002" && error.meta?.target?.includes("email")) {
       return res.status(400).json({ message: "Email already exists" })
@@ -49,12 +43,15 @@ export const createUser = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Internal Server Error" })
   }
 }
-
 export const loginUser = async (req: Request, res: Response) => {
   const { email, password } = req.body
 
   try {
-    const user = await prismaClient.user.findUnique({ where: { email } })
+    const hashedPassword = await bcrypt.hash(password, salt)
+
+    const user = await prismaClient.user.findUnique({
+      where: { email, password: hashedPassword }
+    })
 
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password" })
@@ -64,24 +61,22 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.status(403).json({ message: "User account is blocked" })
     }
 
-    const passwordMatch = await bcrypt.compare(password, user.password)
+    const payload = { username: user.username, email: user.email }
+    const accessToken = tokenService.generateAccessToken(payload)
+    const refreshToken = tokenService.generateRefreshToken(payload)
 
-    if (passwordMatch) {
-      const payload = { id: user.id, email: user.email }
-      const accessToken = tokenService.generateAccessToken(payload)
-      const refreshToken = tokenService.generateRefreshToken(payload)
+    await prismaClient.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date(), refreshToken }
+    })
 
-      await prismaClient.user.update({
-        where: { id: user.id },
-        data: { lastLogin: new Date() }
-      })
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      maxAge: maxAgeCookie
+    })
 
-      return res
-        .status(200)
-        .json({ accessToken, refreshToken, username: user.username })
-    } else {
-      return res.status(401).json({ message: "Invalid email or password" })
-    }
+    return res.status(200).json({ accessToken, username: user.username })
   } catch (error) {
     console.error("Error during login:", error)
     return res.status(500).json({ message: "Internal Server Error" })

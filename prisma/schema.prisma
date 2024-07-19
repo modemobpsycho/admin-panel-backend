@@ -16,7 +16,7 @@ model User {
   id                Int      @id @default(autoincrement())
   email             String   @unique
   username          String
-  position          String   @default("")
+  position          String?   
   password          String
   lastLogin         DateTime @default(now())
   access            Boolean  @default(false)
