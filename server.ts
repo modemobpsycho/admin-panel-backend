@@ -16,8 +16,10 @@ app.use((req, res, next) => {
 app.use("/api/users", userRouter)
 app.use("/api", authRouter)
 
-const PORT = process.env.PORT || 5000
+const PORT = process.env.PORT || 3000
 
 app.listen(PORT, () => {
   console.log(`Server is running on localhost:${PORT}`)
 })
+
+export default app
