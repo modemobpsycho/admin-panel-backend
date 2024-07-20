@@ -6,12 +6,12 @@ import authRouter from "./router/authRouter"
 const app = express()
 
 app.use(express.json())
-app.use(cors())
 
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173")
-  next()
-})
+const corsOptions = {
+  origin: ["https://itra-task-4-frontend.vercel.app", "http://localhost:5173"]
+}
+
+app.use(cors(corsOptions))
 
 app.use("/api/users", userRouter)
 app.use("/api", authRouter)
